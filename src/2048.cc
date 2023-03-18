@@ -2,6 +2,7 @@
 #include <iostream>
 #include <vector>
 #include <random>
+#include <locale>
 
 #include <cmath>
 #include <cstdlib>
@@ -150,7 +151,7 @@ public:
     }
 
 
-    void out(WINDOW *win) {
+    void out(WINDOW *win, std::int32_t offy, std::int32_t offx, bool fill_empty = true) {
         std::size_t max_size = 0, this_size = 0;
         for (std::int32_t i = 0; i < x; i++) {
             for (std::int32_t j = 0; j < y; j++) {
@@ -161,13 +162,65 @@ public:
             }
         }
 
-        for (std::int32_t i = 0; i < x; i++) {
-            for (std::int32_t j = 0; j < y; j++) {
-                if (cells[i][j] == 0) { continue; }
-                std::string this_str = std::to_string(static_cast<std::int64_t>(std::pow(2, cells[i][j])));
-                mvwaddstr(win, i, j * (max_size + 2) + (max_size + 2 - this_str.length()) / 2, this_str.c_str());
+        mvwaddwstr(win, offy - 1, offx - 1, L"┏");
+        for (std::int32_t z = 0; z < (max_size + 1) * y - 1; z++) {
+            if (z % (max_size + 1) == max_size) {
+                mvwaddwstr(win, offy - 1, z + offx, L"┳");
+            } else {
+                mvwaddwstr(win, offy - 1, z + offx, L"━");
             }
         }
+        waddwstr(win, L"┓");
+        for (std::int32_t i = 0; i < x; i++) {
+            mvwaddwstr(win, i * 2 + offy, offx - 1, L"┃");
+            for (std::int32_t j = 0; j < y; j++) {
+                mvwaddwstr(win, i * 2 + offy, (j + 1) * (max_size + 1) + offx - 1, L"┃");
+                std::string this_str = std::to_string(static_cast<std::int64_t>(std::pow(2, cells[i][j])));
+                if (cells[i][j] <= 0) {
+                    if (fill_empty) {
+                        this_str = std::string(max_size, ' ');
+                    } else {
+                        continue;
+                    }
+                }
+                if (fill_empty) {
+                    this_str = std::string((max_size - this_str.length()) / 2.0 + 0.5, ' ') + this_str + std::string((max_size - this_str.length()) / 2.0, ' ');
+                }
+                if (cells[i][j] >= 11) {
+                    attron(A_BOLD);
+                }
+                if (fill_empty) {
+                    mvwaddstr(win, i * 2 + offy, j * (max_size + 1) + (max_size - this_str.length()) / 2 + offx, this_str.c_str());
+                } else {
+                    mvwaddstr(win, i * 2 + offy, j * (max_size + 1) + (max_size + 1 - this_str.length()) / 2 + offx, this_str.c_str());
+                }
+                if (cells[i][j] >= 11) {
+                    attroff(A_BOLD);
+                }
+            }
+            if (i < x - 1) {
+                mvwaddwstr(win, i * 2 + offy + 1, offx - 1, L"┣");
+                for (std::int32_t z = 0; z < (max_size + 1) * y - 1; z++) {
+                    if (z % (max_size + 1) == max_size) {
+                        mvwaddwstr(win, i * 2 + offy + 1, z + offx, L"╋");
+                    } else {
+                        mvwaddwstr(win, i * 2 + offy + 1, z + offx, L"━");
+                    }
+                }
+                waddwstr(win, L"┫");
+            } else if (i == x - 1) {
+                mvwaddwstr(win, i * 2 + offy + 1, offx - 1, L"┗");
+                for (std::int32_t z = 0; z < (max_size + 1) * y - 1; z++) {
+                    if (z % (max_size + 1) == max_size) {
+                        mvwaddwstr(win, i * 2 + offy + 1, z + offx, L"┻");
+                    } else {
+                        mvwaddwstr(win, i * 2 + offy + 1, z + offx, L"━");
+                    }
+                }
+                waddwstr(win, L"┛");
+            }
+        }
+
     }
 
     bool can_move() {
@@ -190,14 +243,16 @@ public:
 int main() {
     static constexpr std::int32_t max_input_size = 50; /* this is a number input str so this is more than large enough */
     static constexpr std::int32_t min_random_spawn_count = 1;
-    static constexpr std::int32_t max_random_spawn_count = 2;
+    static constexpr std::int32_t max_random_spawn_count = 1;
     static constexpr std::int32_t min_random_spawn = 1;
     static constexpr std::int32_t max_random_spawn = 2;
+
+    std::setlocale(LC_ALL, "");
 
     WINDOW *win = init_ncurses();
     wmove(win, 0, 0);
 
-    char in[max_input_size];
+    char in[max_input_size + 1];
     std::int32_t x = 0, y = 0;
 
     addstr("x size: ");
@@ -228,7 +283,7 @@ int main() {
     }
 
     wclear(win);
-    game.out(win);
+    game.out(win, 3, 2);
 
     bool game_over = false;
 
@@ -289,11 +344,9 @@ int main() {
         }
 
 
-        wclear(win);
 
-        game.out(win);
-        mvwaddstr(win, x + 2, 0, ("score: " + std::to_string(game.score)).c_str());
-        wmove(win, getcury(win) + 1, 0);
+        game.out(win, 3, 2);
+        mvwaddstr(win, 0, 0, ("score: " + std::to_string(game.score)).c_str());
 
         wrefresh(win);
 
@@ -305,6 +358,7 @@ int main() {
     if (game_over) {
         std::cout << "game over\n";
     }
+    std::cout << "x: " << x << ", y: " << y << '\n';
     std::cout << "score: " << game.score << '\n';
 
     return 0;
